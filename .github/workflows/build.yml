@@ -8,6 +8,8 @@ on:
     # UTC 表記
     # 日本時間 23:30
     - cron: "30 14 * * *"
+  repository_dispatch:
+    types: [build]
 
 jobs:
   build:
@@ -17,40 +19,48 @@ jobs:
       env:
         CPPREFJP_GITHUB_IO_SECRETS: ${{ secrets.CPPREFJP_GITHUB_IO_SECRETS }}
       run: |
-        mkdir -p $HOME/.ssh
-        echo "$CPPREFJP_GITHUB_IO_SECRETS" > $HOME/.ssh/id_ed25519
-        chmod 600 $HOME/.ssh/id_ed25519
+        if [[ -n $CPPREFJP_GITHUB_IO_SECRETS ]]; then
+          mkdir -p $HOME/.ssh
+          echo "$CPPREFJP_GITHUB_IO_SECRETS" > $HOME/.ssh/id_ed25519
+          chmod 600 $HOME/.ssh/id_ed25519
+        fi
 
     # site_generator
-    - uses: actions/checkout@v2
+    - name: checkout site_generator
+      uses: actions/checkout@v2
       with:
         repository: cpprefjp/site_generator
         path: site_generator
-    - run: git submodule update -i
+    - name: submodule update for site_generator
+      run: git submodule update -i
       working-directory: site_generator
 
     # kunai
-    - uses: actions/checkout@v2
+    - name: checkout kunai
+      uses: actions/checkout@v2
       with:
         repository: cpprefjp/kunai
         path: site_generator/kunai
-    - run: git submodule update -i
+    - name: submodule update for kunai
+      run: git submodule update -i
       working-directory: site_generator/kunai
 
     # cpprefjp.github.io
-    - uses: actions/checkout@v2
+    - name: checkout github pages
+      uses: actions/checkout@v2
       with:
         repository: cpprefjp/cpprefjp.github.io
         path: site_generator/cpprefjp/cpprefjp.github.io
 
     # site
-    - uses: actions/checkout@v2
+    - name: checkout cpprefjp
+      uses: actions/checkout@v2
       with:
-        repository: cpprefjp/site
         path: site_generator/cpprefjp/site
         # atom 生成のために全履歴が必要
         fetch-depth: 0
-    - run: git submodule update -i
+    - name: submodule update for cpprefjp
+      run: git submodule update -i
       working-directory: site_generator/cpprefjp/site
 
     - name: Set up Python 3.x
@@ -58,6 +68,19 @@ jobs:
       with:
         python-version: 3.x
 
+    - name: download cache
+      continue-on-error: true
+      uses: actions/download-artifact@v1
+      with:
+        name: cache
+        path: site_generator/cache
+
     # あとはスクリプトで頑張る
-    - run: ./cpprefjp/site/.github/workflows/script/build.sh
+    - run: ./cpprefjp/site/.github/workflows/script/build.sh ${{ github.event_name }}
       working-directory: site_generator
+
+    - name: upload cache
+      uses: actions/upload-artifact@v1
+      with:
+        name: cache
+        path: site_generator/cache

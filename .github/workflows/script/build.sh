@@ -28,18 +28,30 @@ pushd cpprefjp/static/static/crsearch
   ln -s ../../../../crsearch.json/crsearch.json crsearch.json
 popd
 
+#キャッシュの復元
+cp cache/* . && :
+
 # サイトの生成
 pip3 install -r docker/requirements.txt
-python3 run.py settings.cpprefjp --concurrency=`nproc`
+if [[ $1 == schedule || $1 == repository_dispatch ]]; then
+  python3 run.py settings.cpprefjp --concurrency=`nproc` --all
+else
+  python3 run.py settings.cpprefjp --concurrency=`nproc`
+fi
 
-# 生成されたサイトの中身を push
-pushd cpprefjp/cpprefjp.github.io
-  # push するために ssh のリモートを追加する
-  git remote add origin2 git@github.com:cpprefjp/cpprefjp.github.io.git
+#キャッシュの退避
+mkdir -p cache
+cp *.cache cache
 
-  git add ./ --all
-  git config --global user.email "shigemasa7watanabe+cpprefjp@gmail.com"
-  git config --global user.name "cpprefjp-autoupdate"
-  git commit -a -m "update automatically"
-  git push origin2 master
-popd
+if [[ -s ~/.ssh/id_ed25519 ]]; then
+  # 生成されたサイトの中身を push
+  pushd cpprefjp/cpprefjp.github.io
+    # push するため push 用 URL を ssh にする
+    git remote set-url --push origin git@github.com:$GITHUB_PAGES.git
+
+    git config --global user.email "shigemasa7watanabe+cpprefjp@gmail.com"
+    git config --global user.name "cpprefjp-autoupdate"
+    git commit -a -m "update automatically"
+    git push origin master
+  popd
+fi
